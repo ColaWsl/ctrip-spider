@@ -24,6 +24,7 @@ def build_url(base, places, placenames):
         for i in range(1, 1):  # 只爬取第2页的数据，如果需要爬取更多页，请调整这里的范围
             tmp = base + places[j] + "/s0-p" + str(i) + ".html"
             requestlist.append({"url": tmp, "place": placenames[j]})
+    print(requestlist[0])
     return requestlist
 
 
@@ -32,7 +33,8 @@ def request_url(req):
     response = requests.get(req["url"], headers=headers)
     soup = BS(response.text, 'html.parser')
     vs = soup.find_all(name="div", attrs={"class": "titleModule_name__Li4Tv"})
-    end_time = time.time()
+    # class ="titleModule_name__Li4Tv" > < span > < a href="https://you.ctrip.com/sight/xiamen21/8625.html?scene=online" 厦门园林植物
+    # end_time = time.time()
     # 计算执行时间
     # execution_time_ms = (end_time - start_time) * 1000
     # print("request_url time:")
@@ -40,17 +42,32 @@ def request_url(req):
     return vs
 
 
-def request_real_link(link):
+def request_real_link(link, req):
     response = requests.get(link, headers=headers)
     soup = BS(response.text, 'html.parser')
+
+    baseInfoModule = soup.find("div", attrs={"class": "baseInfoModule"})
+    baseInfoMain = baseInfoModule.find("div", attrs={"class": "baseInfoMain"})
+
+    name = baseInfoMain.find("div", attrs={"class": "title"}).find("h1").get_text()
+    addr = baseInfoMain.find("p", attrs={"class": "baseInfoText"}).get_text()
+
     # 简介
     div = soup.find_all(name="div", attrs={"class": "detailModuleRef"})
-    div = div[0].find_all(name="div", attrs={"class": "moduleContent"})
-    p = div[0].find_all('p')
-    intro = p[0].get_text() + p[2].get_text() + p[4].get_text()
-    # 地址
-    addr = soup.find_all(name="p", attrs={"class": "baseInfoText"})[0].get_text()
+    div = div[0].find(name="div", attrs={"class": "LimitHeightText"})
+    p = div.find_all(name="p")
+    intro = ""
+    if len(p) == 0:
+        intro = div.find(name="div").text
+    if len(p) == 1:
+        intro = p[0].text
+    if len(p) == 2:
+        intro = p[0].text + p[1].text
+    if len(p) >= 3:
+        intro = p[0].text + p[1].text + p[2].text
 
+    score = soup.find_all(name="p", attrs={"class": "commentScoreNum"})[0].get_text()
+    rank = soup.find_all(name="p", attrs={"class": "rankText"})[0].get_text()
     imgs = []
     img = soup.find_all(name="div", attrs={"class": "swiperItem"})
     for img_tag in img:
@@ -68,10 +85,14 @@ def request_real_link(link):
         else:
             print("未找到 style 属性")
     data = {
-        "intro": intro,
-        "addr": addr,
+        "name": name,
+        "introduce": intro,
         "imgs": imgs,
-        "imgCount": len(imgs)
+        "imgCount": len(imgs),
+        "city": req['place'],
+        "address": addr,
+        "score": score,
+        "rank": rank,
     }
 
     return data
@@ -90,10 +111,14 @@ def sight_items(places, placenames, scope):
         try:
             vs = request_url(req)
             size = min(len(vs), scope)
-
+            # for j in range(size):
+            #     data = process_item(vs[j], req)
+            #     if data is not None:
+            #         result_list.append(data)
+            #     time.sleep(0.3)
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 # 创建一个并发任务列表
-                futures = [executor.submit(process_item, vs[j]) for j in range(size)]
+                futures = [executor.submit(process_item, vs[j], req) for j in range(size)]
 
                 for future in concurrent.futures.as_completed(futures):
                     result = future.result()
@@ -112,7 +137,7 @@ def sight_items(places, placenames, scope):
     return ret
 
 
-def process_item(v):
+def process_item(v, req):
     try:
         a_tag = v.find("a")
         link = ""
@@ -121,8 +146,8 @@ def process_item(v):
             # 获取链接和文本
             link = a_tag['href']
             text = a_tag.get_text()
-            # print(f"名称: {text}, 链接: {link}")
-        data = request_real_link(link)
+            print(f"名称: {text}, 链接: {link}")
+        data = request_real_link(link, req)
         return data
     except Exception as e:
         print(f"Error processing item: {e}")
@@ -132,11 +157,11 @@ def process_item(v):
 # 示例用法
 if __name__ == "__main__":
     start_time = time.time()
-    city = "南京"
+    city = "厦门"
     place = get_city_num(city)
     places = [place]  # 例如，选择一个地点
     placenames = [city]  # 对应地点的名称
-    scope = 5  # 数量
+    scope = 10  # 数量
     sight_data = sight_items(places, placenames, scope)
     print(json.dumps(sight_data, indent=2, ensure_ascii=False))
     end_time = time.time()

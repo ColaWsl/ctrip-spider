@@ -42,7 +42,7 @@ def get_city_num(city):
 # 示例用法
 if __name__ == "__main__":
 
-    city = "上海"
+    city = "佛山"
     result = get_city_num(city)
     if result:
         print("拼接结果:", result)

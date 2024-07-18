@@ -49,6 +49,7 @@ def scrape_food_items(places, placenames, scope):
         try:
             vs = request_url(req)
             size = min(len(vs), scope)
+            print("size: " + str(size))
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 # 创建一个并发任务列表
                 futures = [executor.submit(process_item, vs[j], req, base2) for j in range(size)]
@@ -74,18 +75,28 @@ def process_item(v, req, base2):
 
     try:
             href = v.find(name="a", attrs={"target": "_blank"}).attrs["href"]
+            print("food item")
+            print(base2 + href)
             res = requests.get(base2 + href, headers=headers)
             soupi = BS(res.text, "html.parser")
-
+            li = soupi.find(name="div", attrs={"class": "f_restaurant_list"}).find(name="li")
+            addr = li.find(name="p", attrs={"class": "ellipsis"}).text
+            if "地址：" in addr:
+                addr = addr.replace("地址：", "")
+            store = li.find(name="span", attrs={"class": "ellipsis"}).text
             name = soupi.find_all(name="li", attrs={"class": "title ellipsis"})
             introduce = soupi.find_all(name="li", attrs={"class": "infotext"})
             imglinks = soupi.find_all(name="a", attrs={"href": "javascript:void(0)"})
             img = imglinks[0].find_all(name="img")[0].attrs["src"]
+            imgs = [img]
             tmp = {}
             tmp["name"] = name[0].get_text()
             tmp["introduce"] = introduce[0].get_text()
-            tmp["img"] = img
+            tmp["imgs"] = imgs
+            tmp["imgCount"] = len(imgs)
             tmp["city"] = req["place"]
+            tmp["address"] = addr
+            tmp["store"] = store
             return tmp
     except Exception as e:
         print(f"Error processing item: {e}")

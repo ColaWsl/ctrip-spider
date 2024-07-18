@@ -58,12 +58,13 @@ def entertainment_data(city, des_city):
     }
     return ret
 
-def food_data(city, des_city):
+def food_data(city, des_city, min_, max_):
     start_time = time.time()
     place = get_city_num(des_city)
     places = [place]  # 例如，选择一个地点
     placenames = [des_city]  # 对应地点的名称
-    scope = random.randint(2, 5)  # 景点数量可以控制
+    scope = random.randint(min_, max_)  # 景点数量可以控制
+    print("food scope" + str(scope))
     food_items = scrape_food_items(places, placenames, scope)
     end_time = time.time()
     # 计算执行时间
@@ -72,12 +73,14 @@ def food_data(city, des_city):
     print(execution_time_ms)
     return food_items
 
-def sight_data(city, des_city):
+def sight_data(city, des_city, min_, max_):
     start_time = time.time()
     place = get_city_num(des_city)
     places = [place]  # 例如，选择一个地点
     placenames = [des_city]  # 对应地点的名称
-    scope = random.randint(2, 5)  # 景点数量可以控制
+    scope = random.randint(min_, max_)  # 景点数量可以控制
+    print("sight scope" + str(scope))
+
     sight_data = sight_items(places, placenames, scope)
     end_time = time.time()
     # 计算执行时间
