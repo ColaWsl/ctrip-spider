@@ -39,6 +39,19 @@ load_dotenv()  # 从.env文件加载环境变量
 api_key = os.getenv('API_KEY')
 
 
+def get_nav_route(events_loc):
+    nav_route = []
+    for i in range(len(events_loc) - 1):
+        e1 = events_loc[i]
+        e2 = events_loc[i + 1]
+        res = get_distance_and_transit(e1, e2)
+        if res is not None:
+            nav_route.append(res)
+    return {
+        "route": nav_route
+    }
+
+
 def get_events_loc(events):
     start_time = time.time()
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -52,15 +65,17 @@ def get_events_loc(events):
     return results
 
 
-def get_distance_and_transit(origin, city1code, destination, city2code):
+def get_distance_and_transit(event_loc1, event_loc2):
+    # {'adcode': '330102', 'address': '杭州市西湖风景名胜区', 'city': '杭州', 'citycode': '0571', 'location': '120.158108,30.241651'}
+
     url = "https://restapi.amap.com/v5/direction/transit/integrated"
     params = {
         "key": api_key,
-        "origin": origin,
-        "destination": destination,
-        "city1": city1code,
-        "city2": city2code,
-        "AlternativeRoute": 5,
+        "origin": event_loc1["location"],
+        "destination": event_loc2["location"],
+        "city1": event_loc1["citycode"],
+        "city2": event_loc2["citycode"],
+        # "AlternativeRoute": route_num,
         "show_fields": "cost"
     }
 
@@ -76,11 +91,10 @@ def get_distance_and_transit(origin, city1code, destination, city2code):
             transits = route["transits"]
             return {
                 "distance": str(float(distance) / 1000.0) + "km",
-                "transits": transits,
-                "origin": origin,
-                "destination": destination,
+                # "transits": transits,
+                "origin": event_loc1["address"],
+                "destination": event_loc2["address"],
                 "description": parse_transits(transits),
-                "description2": parse_transits2(transits),
 
             }
         else:
@@ -92,119 +106,79 @@ def get_distance_and_transit(origin, city1code, destination, city2code):
         return None
 
 
-def parse_transits2(transits):
-    result = []
+def parse_transit(transit):
+    total_duration = float(transit['cost']['duration']) / 60.0
+    total_distance = float(transit['distance']) / 1000.0
+    walking_distance = float(transit['walking_distance']) / 1000.0
+    total_cost = float(transit['cost']['transit_fee'])
 
-    for index, transit in enumerate(transits):
-        total_duration = float(transit['cost']['duration']) / 60.0  # 转换为分钟
-        total_distance = float(transit['distance']) / 1000.0  # 转换为公里
-        walking_distance = float(transit['walking_distance']) / 1000.0  # 转换为公里
-        total_cost = float(transit['cost']['transit_fee'])  # 转换为元
+    template = f"路线规划方案\n"
+    template += f"- 总时长: {total_duration:.2f} 分钟\n"
+    template += f"- 总距离: {total_distance:.3f} 公里\n"
+    template += f"- 步行距离: {walking_distance:.3f} 公里\n"
+    template += f"- 总费用: {total_cost:.1f} 元\n\n"
 
-        template = f"### 方案{index + 1}\n"
-        template += f"- **总时长**: {total_duration:.2f} 分钟\n"
-        template += f"- **总距离**: {total_distance:.3f} 公里\n"
-        template += f"- **步行距离**: {walking_distance:.3f} 公里\n"
-        template += f"- **总费用**: {total_cost:.1f} 元\n\n"
+    for segment in transit['segments']:
+        if 'bus' in segment:
+            busline = segment['bus']['buslines'][0]
+            departure_stop = busline['departure_stop']
+            arrival_stop = busline['arrival_stop']
+            bus_type = busline['type']
+            segment_distance = float(busline['distance']) / 1000.0
+            segment_duration = float(busline['cost']['duration']) / 60.0
 
-        for segment in transit['segments']:
-            if 'bus' in segment:
-                busline = segment['bus']['buslines'][0]
-                departure_stop = busline['departure_stop']
-                arrival_stop = busline['arrival_stop']
-                bus_type = busline['type']
-                segment_distance = float(busline['distance']) / 1000.0  # 转换为公里
-                segment_duration = float(busline['cost']['duration']) / 60.0  # 转换为分钟
+            template += f"交通类型: {bus_type}\n"
+            template += f"   - 路线: {busline['name']} \n"
+            template += f"   - 出发站: {departure_stop['name']} \n"
+            template += f"   - 到达站: {arrival_stop['name']} \n"
+            template += f"   - 距离: {segment_distance:.2f} 公里\n"
+            template += f"   - 时间: {segment_duration:.1f} 分钟\n\n"
 
-                template += f"**交通类型**: {bus_type}\n"
-                template += f"   - 路线: {busline['name']} \n"
-                template += f"   - 出发站: {departure_stop['name']} ({departure_stop['location']})\n"
-                template += f"   - 到达站: {arrival_stop['name']} ({arrival_stop['location']})\n"
-                template += f"   - 距离: {segment_distance:.2f} 公里\n"
-                template += f"   - 时间: {segment_duration:.1f} 分钟\n\n"
+        if 'walking' in segment:
+            walking_start = segment['walking']['origin']
+            walking_start = parse_formatted_address(walking_start)
+            walking_end = segment['walking']['destination']
+            walking_end = parse_formatted_address(walking_end)
+            walking_distance = float(segment['walking']['distance']) / 1000.0
+            walking_duration = float(segment['walking']['cost']['duration']) / 60.0
 
-            if 'walking' in segment:
-                walking_start = segment['walking']['origin']
-                walking_start = parse_formatted_address(walking_start)
-                walking_end = segment['walking']['destination']
-                walking_end = parse_formatted_address(walking_end)
-                walking_distance = float(segment['walking']['distance']) / 1000.0  # 转换为公里
-                walking_duration = float(segment['walking']['cost']['duration']) / 60.0  # 转换为分钟
+            template += f"步行详情:\n"
+            template += f"   - 起始位置: {walking_start}\n"
+            template += f"   - 目的地: {walking_end}\n"
+            template += f"   - 距离: {walking_distance:.3f} 公里\n"
+            template += f"   - 时间: {walking_duration:.0f} 分钟\n"
+            template += f"   - 步行路线:\n"
 
-                template += f"步行详情:\n"
-                template += f"   - 起始位置: {walking_start}\n"
-                template += f"   - 目的地: {walking_end}\n"
-                template += f"   - 距离: {walking_distance:.3f} 公里\n"
-                template += f"   - 时间: {walking_duration:.0f} 分钟\n"
-                template += f"   - 步行路线:\n"
+            for step in segment['walking']['steps']:
+                template += f"     - {step['instruction']}\n"
 
-                for step in segment['walking']['steps']:
-                    template += f"     - {step['instruction']}\n"
+            template += "\n"
 
-                template += "\n"
-
-        result.append(template)
-
-    return result
-
+    return template
 
 
 def parse_transits(transits):
     result = []
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = []
+        for index, transit in enumerate(transits):
+            transit['index'] = index
+            futures.append(executor.submit(parse_transit, transit))
 
-    for index, transit in enumerate(transits):
-        total_duration = float(transit['cost']['duration']) / 60.0  # 转换为分钟
-        total_distance = float(transit['distance']) / 1000.0  # 转换为公里
-        walking_distance = float(transit['walking_distance']) / 1000.0  # 转换为公里
-        total_cost = float(transit['cost']['transit_fee'])  # 转换为元
+        for future in concurrent.futures.as_completed(futures):
+            result.append(future.result())
+    data = []
+    cnt = 0
+    for item in result:
+        data.append({
+            "index": cnt,
+            "content": item
+        })
+        cnt += 1
+    return data
 
-        template = f"### 方案{index + 1}\n"
-        template += f"- **总时长**: {total_duration:.2f} 分钟\n"
-        template += f"- **总距离**: {total_distance:.3f} 公里\n"
-        template += f"- **步行距离**: {walking_distance:.3f} 公里\n"
-        template += f"- **总费用**: {total_cost:.1f} 元\n\n"
-
-        for segment in transit['segments']:
-            if 'bus' in segment:
-                busline = segment['bus']['buslines'][0]
-                departure_stop = busline['departure_stop']
-                arrival_stop = busline['arrival_stop']
-                bus_type = busline['type']
-                segment_distance = float(busline['distance']) / 1000.0  # 转换为公里
-                segment_duration = float(busline['cost']['duration']) / 60.0  # 转换为分钟
-
-                template += f"**交通类型**: {bus_type}\n"
-                template += f"   - 出发站: {departure_stop['name']} ({departure_stop['location']})\n"
-                template += f"   - 到达站: {arrival_stop['name']} ({arrival_stop['location']})\n"
-                template += f"   - 距离: {segment_distance:.2f} 公里\n"
-                template += f"   - 时间: {segment_duration:.1f} 分钟\n\n"
-
-            if 'walking' in segment:
-                walking_start = segment['walking']['origin']
-                walking_end = segment['walking']['destination']
-                walking_distance = float(segment['walking']['distance']) / 1000.0  # 转换为公里
-                walking_duration = float(segment['walking']['cost']['duration']) / 60.0  # 转换为分钟
-
-                template += f"步行详情:\n"
-                template += f"   - 起始位置: {walking_start}\n"
-                template += f"   - 目的地: {walking_end}\n"
-                template += f"   - 距离: {walking_distance:.3f} 公里\n"
-                template += f"   - 时间: {walking_duration:.0f} 分钟\n"
-                template += f"   - 步行路线:\n"
-
-                for step in segment['walking']['steps']:
-                    template += f"     - {step['instruction']}\n"
-
-                template += "\n"
-
-        result.append(template)
-
-    return result
 
 if __name__ == '__main__':
-    # events_loc = get_events_loc(events)
-    # e1 = events_loc[2]
-    # e2 = events_loc[3]
     e1 = events[0]
     e2 = events[1]
     res = get_distance_and_transit(e1["location"], e1["citycode"], e2["location"], e2["citycode"])

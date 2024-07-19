@@ -43,8 +43,8 @@ def aggr():
     min_ = 3
     max_ = 8
     start_time = time.time()
-    city = "上海"
-    des_city = "深圳"
+    city = "杭州"
+    des_city = "北京"
     with concurrent.futures.ThreadPoolExecutor() as executor:
         # 提交每个任务到线程池
         future_food = executor.submit(food_data, city, des_city, min_, max_)
@@ -71,30 +71,41 @@ def aggr():
 def loc():
     events = [
         {
-            "city": "深圳",
-            "address": "深圳市盐田区盐葵路大梅沙段148号"
+            "city": "北京",
+            "address": "北京市延庆区G6京藏高速58号出口"
         },
         {
-            "city": "深圳",
-            "address": "深圳市南山区华侨城侨城西路"
+            "city": "北京",
+            "address": "北京市西城区前海西街17号"
         },
-        # {
-        #     "city": "深圳",
-        #     "address": "深圳市福田区益田路5033号平安金融中心116层"
-        # },
-        # {
-        #     "city": "深圳",
-        #     "address": "深圳市南山区华侨城深南大道9003号"
-        # },
-        # {
-        #     "city": "深圳",
-        #     "address": "深圳市盐田区大梅沙东部华侨城"
-        # }
+        {
+            "city": "北京",
+            "address": "北京市通州区北京环球度假区"
+        },
+        {
+            "city": "北京",
+            "address": "北京市海淀区新建宫门路19号"
+        },
+        {
+            "city": "北京",
+            "address": "北京市东城区景山前街4号"
+        },
+        {
+            "city": "北京",
+            "address": "北京市东城区天坛路甲1号"
+        }
     ]
+    # 前提 events 的第一元素是起点
+    event = events[0]
+    events.remove(event)
+    # 解析events 经纬度数据
     events_loc = get_events_loc(events)
-    e1 = events_loc[0]
-    e2 = events_loc[1]
-    res = get_distance_and_transit(e1["location"], e1["citycode"], e2["location"], e2["citycode"])
+    events_loc.insert(0, loc_info(event))
+    # 生成最优路线
+    events_loc = generate_optimal_path(events_loc)
+
+    # 生成导航路线方案
+    res = get_nav_route(events_loc)
     return res
 
 
