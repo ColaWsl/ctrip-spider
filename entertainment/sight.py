@@ -54,6 +54,10 @@ def request_real_link(link, req):
 
     # 简介
     div = soup.find_all(name="div", attrs={"class": "detailModuleRef"})
+
+    ## 解析详细信息
+    details = parse_detail(div[0])
+
     div = div[0].find(name="div", attrs={"class": "LimitHeightText"})
     p = div.find_all(name="p")
     intro = ""
@@ -87,6 +91,7 @@ def request_real_link(link, req):
     data = {
         "name": name,
         "introduce": intro,
+        "details": details,
         "imgs": imgs,
         "imgCount": len(imgs),
         "city": req['place'],
@@ -97,6 +102,32 @@ def request_real_link(link, req):
 
     return data
 
+
+def parse_detail(div):
+    titles = div.find_all(name="div", attrs={"class": "moduleTitle"})
+    contents = div.find_all(name="div", attrs={"class": "moduleContent"})
+    details = []
+    if len(titles) > 1:
+        for i in range(1, len(titles)):
+            title = titles[i].get_text()
+            row = contents[i].find_all(name="div", attrs={"class": "moduleContentRow"})
+            content = contents[i].get_text()
+            row = []
+            if len(row) > 0:
+                for j in range(len(row)):
+                    row.append(row[j].get_text())
+            else:
+                row.append(content)
+            item = {
+                "title": title,
+                "content": row,
+            }
+            details.append(item)
+
+    return {
+        "count": len(details),
+        "item": details,
+    }
 
 def sight_items(places, placenames, scope):
     base = "https://you.ctrip.com/sight/"

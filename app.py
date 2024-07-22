@@ -3,6 +3,7 @@ from flask import Flask
 from nav import *
 from aggregation import *
 import concurrent.futures
+from hotel import *
 
 app = Flask(__name__)
 
@@ -44,7 +45,7 @@ def aggr():
     max_ = 8
     start_time = time.time()
     city = "杭州"
-    des_city = "北京"
+    des_city = "上海"
     with concurrent.futures.ThreadPoolExecutor() as executor:
         # 提交每个任务到线程池
         future_food = executor.submit(food_data, city, des_city, min_, max_)
@@ -107,6 +108,16 @@ def loc():
     # 生成导航路线方案
     res = get_nav_route(events_loc)
     return res
+
+
+
+@app.route('/hotel')
+def hotel():
+    event = {
+        "city": "深圳",
+        "address": "深圳市盐田区盐葵路大梅沙段148号"
+    }
+    return get_hotel_info(event)
 
 
 if __name__ == '__main__':
