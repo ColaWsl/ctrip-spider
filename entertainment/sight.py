@@ -110,23 +110,17 @@ def parse_detail(div):
     if len(titles) > 1:
         for i in range(1, len(titles)):
             title = titles[i].get_text()
-            row = contents[i].find_all(name="div", attrs={"class": "moduleContentRow"})
             content = contents[i].get_text()
-            row = []
-            if len(row) > 0:
-                for j in range(len(row)):
-                    row.append(row[j].get_text())
-            else:
-                row.append(content)
             item = {
                 "title": title,
-                "content": row,
+                "content": content,
             }
             details.append(item)
 
     return {
         "count": len(details),
         "item": details,
+        "intro": contents[0].get_text()
     }
 
 def sight_items(places, placenames, scope):
