@@ -91,7 +91,6 @@ def get_distance_and_transit(event_loc1, event_loc2):
             transits = route["transits"]
             return {
                 "distance": str(float(distance) / 1000.0) + "km",
-                # "transits": transits,
                 "origin": event_loc1["address"],
                 "destination": event_loc2["address"],
                 "description": parse_transits(transits),
@@ -112,13 +111,27 @@ def parse_transit(transit):
     walking_distance = float(transit['walking_distance']) / 1000.0
     total_cost = float(transit['cost']['transit_fee'])
 
-    template = f"路线规划方案\n"
-    template += f"- 总时长: {total_duration:.2f} 分钟\n"
-    template += f"- 总距离: {total_distance:.3f} 公里\n"
-    template += f"- 步行距离: {walking_distance:.3f} 公里\n"
-    template += f"- 总费用: {total_cost:.1f} 元\n\n"
+    total_info = {
+        "total_duration": total_duration,
+        "duration_unit": "minute",
+        "total_distance": total_distance,
+        "distance_unit": "km",
+        "total_cost": total_cost,
+        "cost_unit": "rmb",
+        "walking_distance": walking_distance
+    }
+
+    route = []
 
     for segment in transit['segments']:
+        # item = {
+        #     "departure": None,
+        #     "arrival": None,
+        #     "traffic_type": None,
+        #     "distance": None,
+        #     "duration": None,
+        #     "name": None
+        # }
         if 'bus' in segment:
             busline = segment['bus']['buslines'][0]
             departure_stop = busline['departure_stop']
@@ -126,13 +139,16 @@ def parse_transit(transit):
             bus_type = busline['type']
             segment_distance = float(busline['distance']) / 1000.0
             segment_duration = float(busline['cost']['duration']) / 60.0
+            item = {'departure': {
+                "departure_info": departure_stop,
+                "name": departure_stop['name']
+            }, 'arrival': {
+                "arrival_info": arrival_stop,
+                "name": arrival_stop['name']
+            }, 'traffic_type': bus_type, 'distance': segment_distance, 'duration': segment_duration,
+                'name': busline['name']}
 
-            template += f"交通类型: {bus_type}\n"
-            template += f"   - 路线: {busline['name']} \n"
-            template += f"   - 出发站: {departure_stop['name']} \n"
-            template += f"   - 到达站: {arrival_stop['name']} \n"
-            template += f"   - 距离: {segment_distance:.2f} 公里\n"
-            template += f"   - 时间: {segment_duration:.1f} 分钟\n\n"
+            route.append(item)
 
         if 'walking' in segment:
             walking_start = segment['walking']['origin']
@@ -141,20 +157,22 @@ def parse_transit(transit):
             walking_end = parse_formatted_address(walking_end)
             walking_distance = float(segment['walking']['distance']) / 1000.0
             walking_duration = float(segment['walking']['cost']['duration']) / 60.0
+            item = {'departure': {
+                "name": walking_start,
+            }, 'arrival': {
+                "name": walking_end
+            }, 'traffic_type': "walking", 'distance': walking_distance, 'duration': walking_duration,
+                'name': "步行没有线路名称"}
 
-            template += f"步行详情:\n"
-            template += f"   - 起始位置: {walking_start}\n"
-            template += f"   - 目的地: {walking_end}\n"
-            template += f"   - 距离: {walking_distance:.3f} 公里\n"
-            template += f"   - 时间: {walking_duration:.0f} 分钟\n"
-            template += f"   - 步行路线:\n"
+            route.append(item)
 
-            for step in segment['walking']['steps']:
-                template += f"     - {step['instruction']}\n"
+            # for step in segment['walking']['steps']:
+            #     template += f"     - {step['instruction']}\n"
 
-            template += "\n"
-
-    return template
+    return {
+        "info": total_info,
+        "route": route
+    }
 
 
 def parse_transits(transits):
